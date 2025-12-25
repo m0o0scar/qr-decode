@@ -1,0 +1,56 @@
+import { Jimp } from 'jimp';
+import jsQR from 'jsqr';
+import { NextResponse } from 'next/server';
+
+export async function POST(req: Request) {
+  try {
+    // 1. Parse the multipart form data 📥
+    const formData = await req.formData();
+    const file = formData.get('image');
+
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json(
+        { error: "No image provided" }, 
+        { status: 400 }
+      );
+    }
+
+    // 2. Convert File to Buffer 🔄
+    const bytes = await file.arrayBuffer();
+    const buffer = Buffer.from(bytes);
+
+    // 3. Read image with Jimp to get pixel data 🖼️
+    const image = await Jimp.read(buffer);
+    const { data, width, height } = image.bitmap;
+
+    // 4. Decode the QR Code 🔍
+    const code = jsQR(new Uint8ClampedArray(data), width, height);
+
+    if (code) {
+      return NextResponse.json({ 
+        success: true,
+        data: code.data 
+      });
+    } else {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: "No QR code found in image" 
+        }, 
+        { status: 404 }
+      );
+    }
+
+  } catch (error) {
+    console.error("QR Decoding Error:", error);
+    return NextResponse.json(
+      { 
+        success: false,
+        error: "Internal Server Error",
+        details: error instanceof Error ? error.message : 'Unknown error'
+      }, 
+      { status: 500 }
+    );
+  }
+}
+
