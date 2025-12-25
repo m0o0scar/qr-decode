@@ -1,4 +1,4 @@
-import { Jimp } from 'jimp';
+import Jimp from 'jimp';
 import jsQR from 'jsqr';
 import { NextResponse } from 'next/server';
 
@@ -19,8 +19,17 @@ export async function POST(req: Request) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    // 3. Read image with Jimp to get pixel data 🖼️
+    // 3. Read and preprocess image with Jimp 🖼️
     const image = await Jimp.read(buffer);
+
+    // Only preprocess if the image is small enough to avoid performance issues
+    if (image.bitmap.width < 1000 && image.bitmap.height < 1000) {
+      // Preprocess the image to improve QR code detection for small or low-contrast codes
+      image.resize(image.bitmap.width * 2, image.bitmap.height * 2, Jimp.RESIZE_BEZIER)
+           .greyscale()
+           .contrast(0.2);
+    }
+
     const { data, width, height } = image.bitmap;
 
     // 4. Decode the QR Code 🔍
