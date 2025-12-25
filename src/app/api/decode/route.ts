@@ -1,6 +1,6 @@
-import { Jimp } from 'jimp';
-import jsQR from 'jsqr';
 import { NextResponse } from 'next/server';
+import sharp from 'sharp';
+import { readBarcodes } from 'zxing-wasm/reader';
 
 export async function POST(req: Request) {
   try {
@@ -17,32 +17,45 @@ export async function POST(req: Request) {
 
     // 2. Convert File to Buffer 🔄
     const bytes = await file.arrayBuffer();
-    const buffer = Buffer.from(bytes);
+    const fileBuffer = Buffer.from(bytes);
 
-    // 3. Read image with Jimp to get pixel data 🖼️
-    const image = await Jimp.read(buffer);
-    const { data, width, height } = image.bitmap;
+    // 3. Pre-process the image for better recognition 🛠️
+    // Rotate based on metadata, resize to 1000px, and convert to grayscale
+    const { data, info } = await sharp(fileBuffer)
+      .rotate()
+      .resize(1000)
+      .grayscale()
+      .toBuffer({ resolveWithObject: true });
+
+    console.log(
+      `🧪 Image optimized to ${info.width}x${info.height}. Decoding...`
+    );
 
     // 4. Decode the QR Code 🔍
-    const code = jsQR(new Uint8ClampedArray(data), width, height);
+    const results = await readBarcodes(data, {
+      formats: ['QRCode'],
+      tryHarder: true, // Spend more CPU cycles to find distorted QR codes
+      maxNumberOfSymbols: 1,
+    });
 
-    if (code) {
+    if (results.length > 0) {
+      console.log('✅ QR Code decoded successfully!');
       return NextResponse.json({ 
         success: true,
-        data: code.data 
+        data: results[0].text 
       });
     } else {
       return NextResponse.json(
         { 
           success: false,
-          error: "No QR code found in image" 
+          error: "No QR code found in image. Try a clearer image or different lighting." 
         }, 
         { status: 404 }
       );
     }
 
   } catch (error) {
-    console.error("QR Decoding Error:", error);
+    console.error("🛑 QR Decoding Error:", error);
     return NextResponse.json(
       { 
         success: false,
