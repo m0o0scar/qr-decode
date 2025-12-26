@@ -25,6 +25,7 @@ export async function POST(req: Request) {
       .rotate()
       .resize(1000)
       .grayscale()
+      .threshold(128)
       .toBuffer({ resolveWithObject: true });
 
     console.log(
